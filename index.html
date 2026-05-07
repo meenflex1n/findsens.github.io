@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>FPS Sensitivity Helper v2</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; overflow: hidden; font-family: 'Segoe UI', 'Sarabun', Tahoma, sans-serif; background: #0a0a14; color: #fff; user-select: none; }
+  canvas { display: block; }
+
+  #crosshair { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none; z-index: 10; width: 32px; height: 32px; }
+
+  #crosshair.ch-default::before, #crosshair.ch-default::after { content:''; position:absolute; background: var(--ch-color, #00ff88); }
+  #crosshair.ch-default::before { width:2px; height:14px; left:15px; top:9px; }
+  #crosshair.ch-default::after  { width:14px; height:2px; left:9px; top:15px; }
+  #crosshair.ch-default .ch-dot { position:absolute; width:2px; height:2px; left:15px; top:15px; background:var(--ch-color,#00ff88); border-radius:50%; }
+
+  #crosshair.ch-dot .ch-dot { position:absolute; width:6px; height:6px; left:13px; top:13px; background:var(--ch-color,#00ff88); border-radius:50%; }
+
+  #crosshair.ch-cross::before, #crosshair.ch-cross::after { content:''; position:absolute; background:var(--ch-color,#00ff88); }
+  #crosshair.ch-cross::before { width:2px; height:20px; left:15px; top:6px; }
+  #crosshair.ch-cross::after  { width:20px; height:2px; left:6px; top:15px; }
+  #crosshair.ch-cross .ch-dot { display:none; }
+
+  #crosshair.ch-circle .ch-circle-el { position:absolute; width:20px; height:20px; left:6px; top:6px; border: 2px solid var(--ch-color,#00ff88); border-radius:50%; }
+  #crosshair.ch-circle .ch-dot { position:absolute; width:3px; height:3px; left:14.5px; top:14.5px; background:var(--ch-color,#00ff88); border-radius:50%; }
+
+  #crosshair.ch-tshape::before, #crosshair.ch-tshape::after { content:''; position:absolute; background:var(--ch-color,#00ff88); }
+  #crosshair.ch-tshape::before { width:2px; height:10px; left:15px; top:16px; }
+  #crosshair.ch-tshape::after  { width:16px; height:2px; left:8px; top:15px; }
+  #crosshair.ch-tshape .ch-dot { display:none; }
+
+  #hud { position:fixed; top:16px; left:16px; z-index:5; font-size:14px; pointer-events:none; }
+  #hud .row { background:rgba(10,10,20,0.65); padding:8px 12px; margin-bottom:6px; border-radius:4px; border-left:3px solid #00ff88; }
+  #hud .label { opacity:0.7; font-size:11px; text-transform:uppercase; letter-spacing:1px; }
+  #hud .value { font-size:18px; font-weight:600; color:#00ff88; }
+
+  #score-hud { position:fixed; top:16px; right:16px; z-index:5; font-size:14px; pointer-events:none; display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+  #score-hud .row { background:rgba(10,10,20,0.65); padding:8px 12px; border-radius:4px; border-right:3px solid #ffdd44; text-align:right; }
+  #score-hud .label { opacity:0.7; font-size:11px; text-transform:uppercase; letter-spacing:1px; }
+  #score-hud .value { font-size:18px; font-weight:600; color:#ffdd44; }
+
+  #acc-bar-wrap { position:fixed; bottom:40px; left:50%; transform:translateX(-50%); width:260px; z-index:5; pointer-events:none; text-align:center; }
+  #acc-bar-label { font-size:11px; opacity:0.7; letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; }
+  #acc-bar-bg { width:100%; height:8px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden; }
+  #acc-bar-fill { height:100%; border-radius:4px; background:#00ff88; width:0%; transition:width 0.3s; }
+  #acc-bar-pct { font-size:13px; color:#00ff88; margin-top:3px; font-weight:600; }
+
+  #hint { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:rgba(10,10,20,0.6); padding:8px 16px; border-radius:4px; font-size:13px; opacity:0.8; z-index:5; pointer-events:none; border:1px solid #2a2a3e; }
+
+  .overlay { position:fixed; inset:0; background:rgba(5,5,15,0.88); display:flex; align-items:center; justify-content:center; z-index:100; }
+  .panel { background:linear-gradient(145deg,#1a1a2e,#14142a); padding:32px 40px; border-radius:12px; border:1px solid #00ff88; max-width:580px; width:90%; text-align:center; box-shadow:0 0 40px rgba(0,255,136,0.15); max-height:90vh; overflow-y:auto; }
+  .panel h1 { margin-top:0; color:#00ff88; font-size:26px; letter-spacing:1px; }
+  .panel h2 { color:#00ff88; font-size:20px; margin-top:0; }
+  .panel p { line-height:1.7; margin:14px 0; }
+  .panel .small { font-size:13px; opacity:0.7; }
+  .panel .big { font-size:56px; color:#00ff88; margin:24px 0; font-weight:700; letter-spacing:2px; }
+
+  button { background:#00ff88; color:#0a0a14; border:none; padding:12px 22px; font-size:15px; cursor:pointer; border-radius:6px; margin:6px; font-weight:700; font-family:inherit; transition:transform 0.1s,background 0.15s; }
+  button:hover { background:#00cc6a; transform:translateY(-1px); }
+  button:active { transform:translateY(0); }
+  button.secondary { background:#2a2a3e; color:#fff; }
+  button.secondary:hover { background:#3a3a4e; }
+  button.danger { background:#ff4466; color:#fff; }
+  button.danger:hover { background:#cc2244; }
+
+  .sens-input { background:#0a0a14; color:#00ff88; border:1px solid #00ff88; padding:10px 14px; font-size:22px; border-radius:6px; width:140px; text-align:center; font-family:monospace; font-weight:700; }
+
+  .hidden { display:none !important; }
+  .row-buttons { display:flex; flex-wrap:wrap; justify-content:center; gap:4px; margin-top:16px; }
+
+  .ch-picker { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin:16px 0; }
+  .ch-opt { width:64px; height:64px; border-radius:8px; border:2px solid #2a2a3e; cursor:pointer; display:flex; align-items:center; justify-content:center; background:#0a0a14; transition:border-color 0.15s; position:relative; overflow:hidden; }
+  .ch-opt.active { border-color:#00ff88; }
+  .ch-opt svg { width:36px; height:36px; }
+
+  .color-swatches { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin:10px 0; }
+  .swatch { width:28px; height:28px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:border-color 0.15s; }
+  .swatch.active { border-color:#fff; }
+
+  .score-box { background:#0a0a14; border:1px solid #00ff88; border-radius:8px; padding:14px 20px; margin:12px 0; }
+  .score-box .s-row { display:flex; justify-content:space-between; align-items:center; padding:4px 0; font-size:15px; }
+  .score-box .s-val { color:#00ff88; font-weight:700; font-size:18px; }
+  .score-box .s-label { opacity:0.75; }
+</style>
+</head>
+<body>
+
+<div id="hud" class="hidden">
+  <div class="row"><div class="label">Phase</div><div class="value" id="phase-info">-</div></div>
+  <div class="row"><div class="label">Sensitivity</div><div class="value" id="sens-display">1.000</div></div>
+  <div class="row"><div class="label">Progress</div><div class="value" id="progress-info">-</div></div>
+</div>
+
+<div id="score-hud" class="hidden">
+  <div class="row"><div class="label">On-Target Time</div><div class="value" id="on-target-time">0.0s</div></div>
+  <div class="row"><div class="label">Accuracy %</div><div class="value" id="acc-pct-hud">0%</div></div>
+</div>
+
+<div id="acc-bar-wrap" class="hidden">
+  <div id="acc-bar-label">Tracking Accuracy</div>
+  <div id="acc-bar-bg"><div id="acc-bar-fill"></div></div>
+  <div id="acc-bar-pct">0%</div>
+</div>
+
+<div id="crosshair" class="hidden ch-default" style="--ch-color:#00ff88;">
+  <div class="ch-dot"></div>
+  <div class="ch-circle-el" style="display:none"></div>
+</div>
+
+<div id="hit-flash" style="position:fixed;inset:0;background:rgba(0,255,136,0.12);pointer-events:none;z-index:9;opacity:0;transition:opacity 0.08s;"></div>
+
+<div id="hint" class="hidden">คลิกซ้าย = ยิง &nbsp;|&nbsp; ESC = เมนูปรับ Sensitivity</div>
+
+<!-- Start Menu -->
+<div id="start-menu" class="overlay">
+  <div class="panel">
+    <h1>FPS Sensitivity Helper</h1>
+    <p>เครื่องมือช่วยหา <strong>Sensitivity</strong> ที่เหมาะสมกับการเล็งของคุณ</p>
+    <p class="small" style="text-align:left;line-height:1.9;">
+      <strong style="color:#00ff88;">Phase 1 — Tracking</strong><br>
+      เล็งตามเป้าที่เคลื่อนที่ไปมา 30 วินาที ระบบวัด % เวลาที่เล็งถูกเป้าและให้เกรด S/A/B/C/D<br><br>
+      <strong style="color:#00ff88;">Phase 2 — Flicking</strong><br>
+      สะบัดเมาส์ยิงเป้านิ่งสุ่ม 20 เป้า มีเป้ากลางจอรีเซ็ตจุดเล็ง
+    </p>
+    <p class="small">กด <strong>ESC</strong> เพื่อปรับ Sensitivity ได้ตลอดเวลา</p>
+    <button id="start-btn">เริ่มเลย</button>
+    <button id="open-settings-btn" class="secondary">⚙ ตั้งค่า Crosshair</button>
+  </div>
+</div>
+
+<!-- Pause Menu -->
+<div id="pause-menu" class="overlay hidden">
+  <div class="panel">
+    <h1>เมนู / ปรับ Sensitivity</h1>
+    <p>ค่า Sensitivity ปัจจุบัน</p>
+    <input type="number" step="0.001" min="0.001" id="sens-input" class="sens-input">
+    <p class="small">พิมพ์ค่าใหม่เพื่อปรับด้วยตัวเอง</p>
+    <div style="margin-top:22px;">
+      <p style="margin-bottom:6px;">FOV: <strong id="fov-value" style="color:#00ff88;">103</strong>°</p>
+      <input type="range" id="fov-input" min="60" max="120" step="1" value="103" style="width:80%;">
+    </div>
+    <hr style="border-color:#2a2a3e;margin:20px 0;">
+    <p style="margin-bottom:8px;font-weight:600;">Crosshair Style</p>
+    <div class="ch-picker" id="ch-picker-pause"></div>
+    <p style="margin-bottom:8px;font-weight:600;">Crosshair Color</p>
+    <div class="color-swatches" id="color-swatches-pause"></div>
+    <div class="row-buttons">
+      <button id="resume-btn">กลับเข้าเกม</button>
+      <button id="restart-btn" class="secondary">เริ่มทดสอบใหม่</button>
+    </div>
+  </div>
+</div>
+
+<!-- Crosshair Settings (from main menu) -->
+<div id="ch-settings" class="overlay hidden">
+  <div class="panel">
+    <h1>ตั้งค่า Crosshair</h1>
+    <p style="margin-bottom:8px;font-weight:600;">Style</p>
+    <div class="ch-picker" id="ch-picker-main"></div>
+    <p style="margin-bottom:8px;font-weight:600;">Color</p>
+    <div class="color-swatches" id="color-swatches-main"></div>
+    <div class="row-buttons">
+      <button id="ch-settings-close">ตกลง</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tracking Question -->
+<div id="tracking-question" class="overlay hidden">
+  <div class="panel">
+    <h1>Tracking — ผลคะแนน</h1>
+    <p>Sensitivity: <strong id="tq-current" style="color:#00ff88;">1.000</strong></p>
+    <div class="score-box" id="tq-score-box">
+      <div class="s-row"><span class="s-label">เวลาที่เล็งถูก</span><span class="s-val" id="tq-ontime">0.0s</span></div>
+      <div class="s-row"><span class="s-label">ความแม่น (Accuracy)</span><span class="s-val" id="tq-acc">0%</span></div>
+      <div class="s-row"><span class="s-label">เกรด</span><span class="s-val" id="tq-grade-inline">-</span></div>
+    </div>
+    <p>ความเร็วเมาส์ตอนเล็งตามเป้า...</p>
+    <div class="row-buttons">
+      <button id="tq-fast" class="danger">เร็วไป (÷ 2)</button>
+      <button id="tq-slow" class="danger">ช้าไป (× 2)</button>
+      <button id="tq-good">พอดีแล้ว</button>
+    </div>
+    <p class="small">เคล็ดลับ: เลือก "พอดีแล้ว" เมื่อเกรด A ขึ้นไป</p>
+  </div>
+</div>
+
+<!-- Flicking Question -->
+<div id="flicking-question" class="overlay hidden">
+  <div class="panel">
+    <h1>Flicking — รู้สึกอย่างไร?</h1>
+    <p>เข้าเป้า: <strong id="fq-hits" style="color:#00ff88;">0</strong> / 20</p>
+    <p>การสะบัดเมาส์ของคุณ <strong>เข้าเป้าตามที่ใจนึก</strong> หรือไม่?</p>
+    <div class="row-buttons">
+      <button id="fq-yes">ใช่ พอดี</button>
+      <button id="fq-no" class="danger">ไม่ ยังไม่ตรงใจ</button>
+    </div>
+  </div>
+</div>
+
+<!-- DPI Advice -->
+<div id="dpi-advice" class="overlay hidden">
+  <div class="panel">
+    <h2>คำแนะนำ — ลองเปลี่ยน DPI</h2>
+    <p>หาก sensitivity ยังไม่เข้าเป้าตามใจนึก DPI อาจไม่เหมาะ</p>
+    <p class="small" style="text-align:left;line-height:1.9;">
+      • สะบัด <strong>เลยเป้า</strong> บ่อย → ลด DPI ลง<br>
+      • สะบัด <strong>ไม่ถึงเป้า</strong> บ่อย → เพิ่ม DPI ขึ้น<br>
+      • DPI ที่นิยมใน FPS อยู่ที่ 400–1600
+    </p>
+    <button id="advice-retry">เริ่มต้นใหม่จาก Tracking</button>
+  </div>
+</div>
+
+<!-- Result Screen -->
+<div id="result-screen" class="overlay hidden">
+  <div class="panel">
+    <h1>เสร็จเรียบร้อย!</h1>
+    <p>Sensitivity ที่เหมาะสมกับคุณคือ</p>
+    <p class="big" id="final-sens">1.000</p>
+    <div class="score-box">
+      <div class="s-row"><span class="s-label">Tracking Accuracy (รอบสุดท้าย)</span><span class="s-val" id="result-acc">0%</span></div>
+      <div class="s-row"><span class="s-label">เกรด Tracking</span><span class="s-val" id="result-grade">-</span></div>
+      <div class="s-row"><span class="s-label">Flick Hits</span><span class="s-val" id="result-flick">0 / 20</span></div>
+    </div>
+    <p class="small">นี่คือตัวคูณความเร็วเมาส์ที่ทดสอบได้จากเครื่องมือนี้</p>
+    <div class="row-buttons">
+      <button id="result-restart">ทดสอบใหม่</button>
+      <button id="result-close" class="secondary">ปิดและเล่นต่อ</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  let sensitivity = 1.000;
+  let fovDeg = 103;
+  const BASE_MOUSE_SPEED = 0.0022;
+  const PI_2 = Math.PI / 2;
+  let yaw = 0, pitch = 0;
+  let justLockedSkipFrames = 0;
+
+  let phase = 'menu';
+  let pausedFromPhase = null;
+
+  const TRACKING_DURATION = 30;
+  let trackingTimer = 0;
+  let trackingOnTargetTime = 0;
+  let lastOnTargetState = false;
+
+  const FLICK_TARGET_COUNT = 20;
+  let flickAttempts = 0;
+  let flickHits = 0;
+  let flickShowingCenter = false;
+
+  let lastTrackingAcc = 0;
+  let lastTrackingGrade = '-';
+
+  const CH_STYLES = [
+    { id:'ch-default', label:'Default' },
+    { id:'ch-dot',     label:'Dot' },
+    { id:'ch-cross',   label:'Cross' },
+    { id:'ch-circle',  label:'Circle' },
+    { id:'ch-tshape',  label:'T-Shape' },
+  ];
+  const CH_COLORS = ['#00ff88','#ffffff','#ff4466','#44aaff','#ffdd44','#ff8844','#cc44ff'];
+  let currentChStyle = 'ch-default';
+  let currentChColor = '#00ff88';
+
+  function buildCrosshairSVG(style, color) {
+    const c = color || '#00ff88';
+    if (style === 'ch-default') return `<svg viewBox="0 0 36 36"><line x1="18" y1="10" x2="18" y2="26" stroke="${c}" stroke-width="2"/><line x1="10" y1="18" x2="26" y2="18" stroke="${c}" stroke-width="2"/><circle cx="18" cy="18" r="1.5" fill="${c}"/></svg>`;
+    if (style === 'ch-dot')     return `<svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="4" fill="${c}"/></svg>`;
+    if (style === 'ch-cross')   return `<svg viewBox="0 0 36 36"><line x1="18" y1="6" x2="18" y2="30" stroke="${c}" stroke-width="2"/><line x1="6" y1="18" x2="30" y2="18" stroke="${c}" stroke-width="2"/></svg>`;
+    if (style === 'ch-circle')  return `<svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="10" fill="none" stroke="${c}" stroke-width="2"/><circle cx="18" cy="18" r="2" fill="${c}"/></svg>`;
+    if (style === 'ch-tshape')  return `<svg viewBox="0 0 36 36"><line x1="18" y1="18" x2="18" y2="30" stroke="${c}" stroke-width="2"/><line x1="10" y1="18" x2="26" y2="18" stroke="${c}" stroke-width="2"/></svg>`;
+    return '';
+  }
+
+  function applyCurrentCrosshair() {
+    const el = document.getElementById('crosshair');
+    el.className = el.className.replace(/ch-\S+/g,'').trim();
+    el.classList.add(currentChStyle);
+    el.style.setProperty('--ch-color', currentChColor);
+    const dot = el.querySelector('.ch-dot');
+    const circle = el.querySelector('.ch-circle-el');
+    if (dot) dot.style.background = currentChColor;
+    if (circle) {
+      circle.style.display = currentChStyle === 'ch-circle' ? 'block' : 'none';
+      circle.style.borderColor = currentChColor;
+    }
+  }
+
+  function buildPickerInto(container, swatchContainer) {
+    container.innerHTML = '';
+    CH_STYLES.forEach(s => {
+      const d = document.createElement('div');
+      d.className = 'ch-opt' + (s.id === currentChStyle ? ' active' : '');
+      d.innerHTML = buildCrosshairSVG(s.id, currentChColor);
+      d.dataset.style = s.id;
+      d.title = s.label;
+      d.addEventListener('click', () => {
+        currentChStyle = s.id;
+        applyCurrentCrosshair();
+        document.querySelectorAll('.ch-opt').forEach(o => o.classList.remove('active'));
+        document.querySelectorAll(`[data-style="${s.id}"]`).forEach(o => o.classList.add('active'));
+        document.querySelectorAll('.ch-opt').forEach(o => {
+          o.innerHTML = buildCrosshairSVG(o.dataset.style, currentChColor);
+        });
+      });
+      container.appendChild(d);
+    });
+
+    swatchContainer.innerHTML = '';
+    CH_COLORS.forEach(c => {
+      const d = document.createElement('div');
+      d.className = 'swatch' + (c === currentChColor ? ' active' : '');
+      d.style.background = c;
+      d.dataset.color = c;
+      d.addEventListener('click', () => {
+        currentChColor = c;
+        applyCurrentCrosshair();
+        document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll(`[data-color="${c}"]`).forEach(s => s.classList.add('active'));
+        document.querySelectorAll('.ch-opt').forEach(o => {
+          o.innerHTML = buildCrosshairSVG(o.dataset.style, currentChColor);
+        });
+      });
+      swatchContainer.appendChild(d);
+    });
+  }
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0a14);
+  scene.fog = new THREE.Fog(0x0a0a14, 25, 80);
+
+  const camera = new THREE.PerspectiveCamera(103, innerWidth/innerHeight, 0.1, 200);
+  camera.position.set(0,1.65,0);
+  camera.rotation.order = 'YXZ';
+
+  const renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  document.body.appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0xffffff,0.55));
+  const keyLight = new THREE.DirectionalLight(0xffffff,0.9);
+  keyLight.position.set(8,18,6); scene.add(keyLight);
+  const fillLight = new THREE.PointLight(0x4488ff,0.4,40);
+  fillLight.position.set(-8,6,4); scene.add(fillLight);
+
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(80,80), new THREE.MeshStandardMaterial({color:0x202030,roughness:0.95}));
+  floor.rotation.x = -Math.PI/2; scene.add(floor);
+  const grid = new THREE.GridHelper(80,40,0x335577,0x22223a); grid.position.y=0.01; scene.add(grid);
+  const backWall = new THREE.Mesh(new THREE.PlaneGeometry(50,25), new THREE.MeshStandardMaterial({color:0x2a2a40,roughness:0.9}));
+  backWall.position.set(0,6,-16); scene.add(backWall);
+  const sideMat = new THREE.MeshStandardMaterial({color:0x252538,roughness:0.9});
+  const lw = new THREE.Mesh(new THREE.PlaneGeometry(40,25),sideMat); lw.position.set(-20,6,-2); lw.rotation.y=Math.PI/2; scene.add(lw);
+  const rw = new THREE.Mesh(new THREE.PlaneGeometry(40,25),sideMat); rw.position.set(20,6,-2); rw.rotation.y=-Math.PI/2; scene.add(rw);
+  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(80,80), new THREE.MeshStandardMaterial({color:0x15152a,roughness:1}));
+  ceiling.rotation.x=Math.PI/2; ceiling.position.y=12; scene.add(ceiling);
+  const pillarMat = new THREE.MeshStandardMaterial({color:0x33334a,roughness:0.8});
+  [[-12,-12],[12,-12],[-12,4],[12,4]].forEach(([x,z]) => {
+    const p = new THREE.Mesh(new THREE.BoxGeometry(1,12,1),pillarMat); p.position.set(x,6,z); scene.add(p);
+  });
+
+  let trackingTarget=null, flickTarget=null, centerTarget=null;
+
+  function makeTarget(radius, color) {
+    const group = new THREE.Group();
+    const inner = new THREE.Mesh(new THREE.SphereGeometry(radius,24,24), new THREE.MeshStandardMaterial({color,emissive:new THREE.Color(color).multiplyScalar(0.4),roughness:0.4,metalness:0.2}));
+    group.add(inner);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius*1.15,radius*0.08,12,32), new THREE.MeshStandardMaterial({color:0xffffff,emissive:0x444444}));
+    group.add(ring);
+    return group;
+  }
+
+  const raycaster = new THREE.Raycaster();
+  const screenCenter = new THREE.Vector2(0,0);
+
+  function checkOnTarget() {
+    if (!trackingTarget) return false;
+    raycaster.setFromCamera(screenCenter, camera);
+    return raycaster.intersectObject(trackingTarget, true).length > 0;
+  }
+
+  const canvas = renderer.domElement;
+  let pointerLocked = false, lockRequestPending = false;
+
+  document.addEventListener('mousemove', (e) => {
+    if (!pointerLocked) return;
+    if (phase !== 'tracking' && phase !== 'flicking') return;
+    if (justLockedSkipFrames > 0) { justLockedSkipFrames--; return; }
+    const MAX_DELTA = 200;
+    let mx = e.movementX, my = e.movementY;
+    if (Math.abs(mx) > MAX_DELTA || Math.abs(my) > MAX_DELTA) return;
+    yaw   -= mx * BASE_MOUSE_SPEED * sensitivity;
+    pitch -= my * BASE_MOUSE_SPEED * sensitivity;
+    pitch = Math.max(-PI_2+0.05, Math.min(PI_2-0.05, pitch));
+    camera.rotation.y = yaw;
+    camera.rotation.x = pitch;
+  });
+
+  document.addEventListener('pointerlockchange', () => {
+    const wasLocked = pointerLocked;
+    pointerLocked = document.pointerLockElement === canvas;
+    if (pointerLocked && !wasLocked) justLockedSkipFrames = 3;
+    if (!pointerLocked && (phase === 'tracking' || phase === 'flicking')) {
+      pausedFromPhase = phase;
+      phase = 'paused';
+      showOverlay(els.pauseMenu);
+      els.sensInput.value = sensitivity.toFixed(3);
+      els.fovInput.value = fovDeg;
+      els.fovValue.textContent = fovDeg;
+      buildPickerInto(document.getElementById('ch-picker-pause'), document.getElementById('color-swatches-pause'));
+    }
+  });
+
+  function lockPointer() {
+    if (!pointerLocked && !lockRequestPending) {
+      lockRequestPending = true;
+      try { canvas.requestPointerLock(); } catch(e) {}
+      setTimeout(() => { lockRequestPending = false; }, 200);
+    }
+  }
+  function unlockPointer() {
+    if (pointerLocked) try { document.exitPointerLock(); } catch(e) {}
+  }
+
+  const els = {
+    hud: document.getElementById('hud'),
+    scoreHud: document.getElementById('score-hud'),
+    accBarWrap: document.getElementById('acc-bar-wrap'),
+    accBarFill: document.getElementById('acc-bar-fill'),
+    accBarPct: document.getElementById('acc-bar-pct'),
+    crosshair: document.getElementById('crosshair'),
+    hint: document.getElementById('hint'),
+    startMenu: document.getElementById('start-menu'),
+    pauseMenu: document.getElementById('pause-menu'),
+    chSettings: document.getElementById('ch-settings'),
+    trackingQ: document.getElementById('tracking-question'),
+    flickingQ: document.getElementById('flicking-question'),
+    dpiAdvice: document.getElementById('dpi-advice'),
+    resultScreen: document.getElementById('result-screen'),
+    sensDisplay: document.getElementById('sens-display'),
+    sensInput: document.getElementById('sens-input'),
+    fovInput: document.getElementById('fov-input'),
+    fovValue: document.getElementById('fov-value'),
+    phaseInfo: document.getElementById('phase-info'),
+    progressInfo: document.getElementById('progress-info'),
+    onTargetTime: document.getElementById('on-target-time'),
+    accPctHud: document.getElementById('acc-pct-hud'),
+    tqCurrent: document.getElementById('tq-current'),
+    tqOntime: document.getElementById('tq-ontime'),
+    tqAcc: document.getElementById('tq-acc'),
+    tqGradeInline: document.getElementById('tq-grade-inline'),
+    fqHits: document.getElementById('fq-hits'),
+    finalSens: document.getElementById('final-sens'),
+    resultAcc: document.getElementById('result-acc'),
+    resultGrade: document.getElementById('result-grade'),
+    resultFlick: document.getElementById('result-flick'),
+    hitFlash: document.getElementById('hit-flash'),
+  };
+
+  const allOverlays = [els.startMenu, els.pauseMenu, els.chSettings, els.trackingQ, els.flickingQ, els.dpiAdvice, els.resultScreen];
+  function hideAllOverlays() { allOverlays.forEach(o => o.classList.add('hidden')); }
+  function showOverlay(el) { hideAllOverlays(); el.classList.remove('hidden'); }
+
+  function calcGrade(pct) {
+    if (pct >= 85) return 'S';
+    if (pct >= 70) return 'A';
+    if (pct >= 55) return 'B';
+    if (pct >= 40) return 'C';
+    return 'D';
+  }
+
+  function updateSensDisplay() {
+    const s = sensitivity.toFixed(3);
+    els.sensDisplay.textContent = s;
+    els.tqCurrent.textContent = s;
+    els.finalSens.textContent = s;
+    if (document.activeElement !== els.sensInput) els.sensInput.value = s;
+  }
+
+  function roundSens(v) { return Math.round(v*1000)/1000; }
+
+  function updateProgress() {
+    if (phase === 'tracking') {
+      els.phaseInfo.textContent = 'Tracking';
+      els.progressInfo.textContent = `${Math.ceil(trackingTimer)} วินาที`;
+    } else if (phase === 'flicking') {
+      els.phaseInfo.textContent = 'Flicking';
+      els.progressInfo.textContent = `${flickAttempts} / ${FLICK_TARGET_COUNT}${flickShowingCenter ? ' (รีเป้ากลาง)' : ''}`;
+    }
+  }
+
+  function updateTrackingScoreHUD() {
+    const elapsed = TRACKING_DURATION - trackingTimer;
+    const pct = elapsed > 0 ? Math.round((trackingOnTargetTime / elapsed) * 100) : 0;
+    els.onTargetTime.textContent = trackingOnTargetTime.toFixed(1) + 's';
+    els.accPctHud.textContent = pct + '%';
+    els.accBarFill.style.width = pct + '%';
+    els.accBarPct.textContent = pct + '%';
+    els.accBarFill.style.background = pct >= 70 ? '#00ff88' : pct >= 40 ? '#ffdd44' : '#ff4466';
+  }
+
+  function showHud() {
+    els.hud.classList.remove('hidden');
+    els.crosshair.classList.remove('hidden');
+    els.hint.classList.remove('hidden');
+  }
+  function hideHud() {
+    els.hud.classList.add('hidden');
+    els.scoreHud.classList.add('hidden');
+    els.accBarWrap.classList.add('hidden');
+    els.crosshair.classList.add('hidden');
+    els.hint.classList.add('hidden');
+  }
+
+  function cleanupTargets() {
+    if (trackingTarget) { scene.remove(trackingTarget); trackingTarget=null; }
+    if (flickTarget) { scene.remove(flickTarget); flickTarget=null; }
+    if (centerTarget) { scene.remove(centerTarget); centerTarget=null; }
+    flickShowingCenter = false;
+  }
+
+  function spawnTrackingTarget() {
+    trackingTarget = makeTarget(0.25, 0xff3b5c);
+    trackingTarget.userData = { t:Math.random()*Math.PI*2, speedX:1.1, speedY:1.7, rangeX:7, rangeY:1.6, cx:0, cy:3.2 };
+    scene.add(trackingTarget);
+  }
+
+  const EYE_LEVEL = 1.65;
+
+  function spawnFlickTarget() {
+    flickTarget = makeTarget(0.35, 0xff3b5c);
+    let x; do { x = (Math.random()-0.5)*18; } while (Math.abs(x)<3);
+    flickTarget.position.set(x, EYE_LEVEL, -15.5);
+    scene.add(flickTarget);
+    flickShowingCenter = false;
+  }
+
+  function spawnCenterTarget() {
+    centerTarget = makeTarget(0.45, 0xffdd44);
+    centerTarget.position.set(0, EYE_LEVEL, -8);
+    scene.add(centerTarget);
+    flickShowingCenter = true;
+  }
+
+  function startTracking() {
+    cleanupTargets();
+    phase = 'tracking';
+    trackingTimer = TRACKING_DURATION;
+    trackingOnTargetTime = 0;
+    lastOnTargetState = false;
+    spawnTrackingTarget();
+    hideAllOverlays();
+    showHud();
+    els.scoreHud.classList.remove('hidden');
+    els.accBarWrap.classList.remove('hidden');
+    updateProgress();
+    lockPointer();
+  }
+
+  function endTracking() {
+    cleanupTargets();
+    phase = 'tracking-q';
+    const pct = Math.round((trackingOnTargetTime / TRACKING_DURATION) * 100);
+    lastTrackingAcc = pct;
+    lastTrackingGrade = calcGrade(pct);
+    els.tqOntime.textContent = trackingOnTargetTime.toFixed(1) + 's / 30s';
+    els.tqAcc.textContent = pct + '%';
+    els.tqGradeInline.textContent = lastTrackingGrade;
+    updateSensDisplay();
+    showOverlay(els.trackingQ);
+    unlockPointer();
+  }
+
+  function startFlicking() {
+    cleanupTargets();
+    phase = 'flicking';
+    flickAttempts = 0; flickHits = 0;
+    els.scoreHud.classList.add('hidden');
+    els.accBarWrap.classList.add('hidden');
+    spawnFlickTarget();
+    hideAllOverlays();
+    showHud();
+    updateProgress();
+    lockPointer();
+  }
+
+  function endFlicking() {
+    cleanupTargets();
+    phase = 'flicking-q';
+    els.fqHits.textContent = flickHits;
+    showOverlay(els.flickingQ);
+    unlockPointer();
+  }
+
+  function showResult() {
+    cleanupTargets();
+    phase = 'result';
+    updateSensDisplay();
+    els.resultAcc.textContent = lastTrackingAcc + '%';
+    els.resultGrade.textContent = lastTrackingGrade;
+    els.resultFlick.textContent = flickHits + ' / 20';
+    showOverlay(els.resultScreen);
+    unlockPointer();
+  }
+
+  function flashHit(target) {
+    const start = performance.now(), dur = 180;
+    function step() {
+      const t = Math.min(1,(performance.now()-start)/dur);
+      const s = 1+t*0.6; target.scale.set(s,s,s);
+      target.children.forEach(c => { if (c.material) { c.material.opacity=1-t; c.material.transparent=true; } });
+      if (t<1) requestAnimationFrame(step); else scene.remove(target);
+    }
+    step();
+  }
+
+  function doHitFlash() {
+    els.hitFlash.style.opacity = '1';
+    setTimeout(() => { els.hitFlash.style.opacity = '0'; }, 80);
+  }
+
+  canvas.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    if (!pointerLocked) {
+      const anyVisible = allOverlays.some(o => !o.classList.contains('hidden'));
+      if (!anyVisible && (phase === 'tracking' || phase === 'flicking')) lockPointer();
+      return;
+    }
+    if (phase === 'flicking') handleFlickShot();
+  });
+
+  function handleFlickShot() {
+    raycaster.setFromCamera(screenCenter, camera);
+    if (flickShowingCenter && centerTarget) {
+      const hits = raycaster.intersectObject(centerTarget, true);
+      if (hits.length > 0) { flashHit(centerTarget); doHitFlash(); centerTarget=null; flickShowingCenter=false; spawnFlickTarget(); updateProgress(); }
+      return;
+    }
+    if (flickTarget) {
+      flickAttempts++;
+      const hits = raycaster.intersectObject(flickTarget, true);
+      if (hits.length > 0) { flickHits++; flashHit(flickTarget); doHitFlash(); flickTarget=null; }
+      else { scene.remove(flickTarget); flickTarget=null; }
+      if (flickAttempts >= FLICK_TARGET_COUNT) endFlicking();
+      else { spawnCenterTarget(); updateProgress(); }
+    }
+  }
+
+  document.getElementById('start-btn').addEventListener('click', () => startTracking());
+  document.getElementById('open-settings-btn').addEventListener('click', () => {
+    buildPickerInto(document.getElementById('ch-picker-main'), document.getElementById('color-swatches-main'));
+    showOverlay(els.chSettings);
+  });
+  document.getElementById('ch-settings-close').addEventListener('click', () => showOverlay(els.startMenu));
+
+  document.getElementById('resume-btn').addEventListener('click', () => {
+    if (pausedFromPhase) {
+      phase = pausedFromPhase; pausedFromPhase = null;
+      hideAllOverlays(); showHud();
+      if (phase === 'tracking') { els.scoreHud.classList.remove('hidden'); els.accBarWrap.classList.remove('hidden'); }
+      lockPointer();
+    } else { hideAllOverlays(); }
+  });
+
+  document.getElementById('restart-btn').addEventListener('click', () => {
+    cleanupTargets(); phase='menu'; pausedFromPhase=null; hideHud(); showOverlay(els.startMenu);
+  });
+
+  els.sensInput.addEventListener('input', () => {
+    const v = parseFloat(els.sensInput.value);
+    if (!isNaN(v) && v>0) { sensitivity=roundSens(v); els.sensDisplay.textContent=sensitivity.toFixed(3); els.tqCurrent.textContent=sensitivity.toFixed(3); els.finalSens.textContent=sensitivity.toFixed(3); }
+  });
+
+  els.fovInput.addEventListener('input', () => {
+    fovDeg = parseInt(els.fovInput.value,10);
+    els.fovValue.textContent = fovDeg;
+    camera.fov = fovDeg; camera.updateProjectionMatrix();
+  });
+
+  document.getElementById('tq-fast').addEventListener('click', () => { sensitivity=roundSens(sensitivity/2); updateSensDisplay(); startTracking(); });
+  document.getElementById('tq-slow').addEventListener('click', () => { sensitivity=roundSens(sensitivity*2); updateSensDisplay(); startTracking(); });
+  document.getElementById('tq-good').addEventListener('click', () => startFlicking());
+
+  document.getElementById('fq-yes').addEventListener('click', () => showResult());
+  document.getElementById('fq-no').addEventListener('click', () => showOverlay(els.dpiAdvice));
+  document.getElementById('advice-retry').addEventListener('click', () => {
+    sensitivity=1.000; yaw=0; pitch=0; camera.rotation.set(0,0,0); updateSensDisplay(); startTracking();
+  });
+
+  document.getElementById('result-restart').addEventListener('click', () => {
+    sensitivity=1.000; yaw=0; pitch=0; camera.rotation.set(0,0,0); updateSensDisplay();
+    cleanupTargets(); phase='menu'; hideHud(); showOverlay(els.startMenu);
+  });
+  document.getElementById('result-close').addEventListener('click', () => {
+    hideAllOverlays(); hideHud(); phase='menu'; showOverlay(els.startMenu);
+  });
+
+  const clock = new THREE.Clock();
+  function animate() {
+    const dt = Math.min(0.05, clock.getDelta());
+
+    if (phase === 'tracking' && trackingTarget) {
+      const ud = trackingTarget.userData;
+      ud.t += dt;
+      trackingTarget.position.x = ud.cx + Math.sin(ud.t*ud.speedX)*ud.rangeX;
+      trackingTarget.position.y = ud.cy + Math.sin(ud.t*ud.speedY+0.7)*ud.rangeY;
+      trackingTarget.position.z = -14.5;
+
+      const onTarget = checkOnTarget();
+      if (onTarget) {
+        trackingOnTargetTime += dt;
+        if (!lastOnTargetState) trackingTarget.children[0].material.emissive = new THREE.Color(0xff3b5c).multiplyScalar(0.9);
+      } else {
+        if (lastOnTargetState) trackingTarget.children[0].material.emissive = new THREE.Color(0xff3b5c).multiplyScalar(0.4);
+      }
+      lastOnTargetState = onTarget;
+
+      trackingTimer -= dt;
+      updateProgress();
+      updateTrackingScoreHUD();
+      if (trackingTimer <= 0) endTracking();
+    }
+
+    [trackingTarget, flickTarget, centerTarget].forEach(t => {
+      if (t && t.children[1]) t.children[1].rotation.z += dt*1.5;
+    });
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+
+  window.addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  applyCurrentCrosshair();
+  buildPickerInto(document.getElementById('ch-picker-pause'), document.getElementById('color-swatches-pause'));
+  updateSensDisplay();
+  animate();
+})();
+</script>
+</body>
+</html>
