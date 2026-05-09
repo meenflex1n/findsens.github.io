@@ -2,33 +2,30 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<title>FPS Sensitivity Helper v2</title>
+<title>FPS Sensitivity Helper v3</title>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; overflow: hidden; font-family: 'Segoe UI', 'Sarabun', Tahoma, sans-serif; background: #0a0a14; color: #fff; user-select: none; }
   canvas { display: block; }
 
-  #crosshair { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none; z-index: 10; width: 32px; height: 32px; }
+  #crosshair-svg {
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none; z-index: 10;
+    width: 48px; height: 48px;
+    transition: none;
+  }
 
-  #crosshair.ch-default::before, #crosshair.ch-default::after { content:''; position:absolute; background: var(--ch-color, #00ff88); }
-  #crosshair.ch-default::before { width:2px; height:14px; left:15px; top:9px; }
-  #crosshair.ch-default::after  { width:14px; height:2px; left:9px; top:15px; }
-  #crosshair.ch-default .ch-dot { position:absolute; width:2px; height:2px; left:15px; top:15px; background:var(--ch-color,#00ff88); border-radius:50%; }
+  #hit-marker {
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none; z-index: 11;
+    width: 32px; height: 32px;
+    opacity: 0;
+  }
 
-  #crosshair.ch-dot .ch-dot { position:absolute; width:6px; height:6px; left:13px; top:13px; background:var(--ch-color,#00ff88); border-radius:50%; }
-
-  #crosshair.ch-cross::before, #crosshair.ch-cross::after { content:''; position:absolute; background:var(--ch-color,#00ff88); }
-  #crosshair.ch-cross::before { width:2px; height:20px; left:15px; top:6px; }
-  #crosshair.ch-cross::after  { width:20px; height:2px; left:6px; top:15px; }
-  #crosshair.ch-cross .ch-dot { display:none; }
-
-  #crosshair.ch-circle .ch-circle-el { position:absolute; width:20px; height:20px; left:6px; top:6px; border: 2px solid var(--ch-color,#00ff88); border-radius:50%; }
-  #crosshair.ch-circle .ch-dot { position:absolute; width:3px; height:3px; left:14.5px; top:14.5px; background:var(--ch-color,#00ff88); border-radius:50%; }
-
-  #crosshair.ch-tshape::before, #crosshair.ch-tshape::after { content:''; position:absolute; background:var(--ch-color,#00ff88); }
-  #crosshair.ch-tshape::before { width:2px; height:10px; left:15px; top:16px; }
-  #crosshair.ch-tshape::after  { width:16px; height:2px; left:8px; top:15px; }
-  #crosshair.ch-tshape .ch-dot { display:none; }
+  #hit-flash { position:fixed;inset:0;background:rgba(255,70,70,0.13);pointer-events:none;z-index:9;opacity:0; }
+  #kill-flash { position:fixed;inset:0;background:rgba(255,200,0,0.10);pointer-events:none;z-index:9;opacity:0; }
 
   #hud { position:fixed; top:16px; left:16px; z-index:5; font-size:14px; pointer-events:none; }
   #hud .row { background:rgba(10,10,20,0.65); padding:8px 12px; margin-bottom:6px; border-radius:4px; border-left:3px solid #00ff88; }
@@ -69,11 +66,6 @@
   .hidden { display:none !important; }
   .row-buttons { display:flex; flex-wrap:wrap; justify-content:center; gap:4px; margin-top:16px; }
 
-  .ch-picker { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin:16px 0; }
-  .ch-opt { width:64px; height:64px; border-radius:8px; border:2px solid #2a2a3e; cursor:pointer; display:flex; align-items:center; justify-content:center; background:#0a0a14; transition:border-color 0.15s; position:relative; overflow:hidden; }
-  .ch-opt.active { border-color:#00ff88; }
-  .ch-opt svg { width:36px; height:36px; }
-
   .color-swatches { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin:10px 0; }
   .swatch { width:28px; height:28px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:border-color 0.15s; }
   .swatch.active { border-color:#fff; }
@@ -103,12 +95,33 @@
   <div id="acc-bar-pct">0%</div>
 </div>
 
-<div id="crosshair" class="hidden ch-default" style="--ch-color:#00ff88;">
-  <div class="ch-dot"></div>
-  <div class="ch-circle-el" style="display:none"></div>
-</div>
+<!-- Valorant-style SVG crosshair -->
+<svg id="crosshair-svg" class="hidden" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+  <g id="ch-lines">
+    <rect id="ch-top"    x="22.5" y="6"  width="3" height="9"  rx="1" fill="#00ff88"/>
+    <rect id="ch-bottom" x="22.5" y="33" width="3" height="9"  rx="1" fill="#00ff88"/>
+    <rect id="ch-left"   x="6"  y="22.5" width="9" height="3"  rx="1" fill="#00ff88"/>
+    <rect id="ch-right"  x="33" y="22.5" width="9" height="3"  rx="1" fill="#00ff88"/>
+    <circle id="ch-dot" cx="24" cy="24" r="1.5" fill="#00ff88"/>
+  </g>
+  <g id="ch-outlines" opacity="0.5">
+    <rect x="22" y="5.5"  width="4" height="10" rx="1.5" fill="none" stroke="#000" stroke-width="1"/>
+    <rect x="22" y="32.5" width="4" height="10" rx="1.5" fill="none" stroke="#000" stroke-width="1"/>
+    <rect x="5.5"  y="22" width="10" height="4" rx="1.5" fill="none" stroke="#000" stroke-width="1"/>
+    <rect x="32.5" y="22" width="10" height="4" rx="1.5" fill="none" stroke="#000" stroke-width="1"/>
+  </g>
+</svg>
 
-<div id="hit-flash" style="position:fixed;inset:0;background:rgba(0,255,136,0.12);pointer-events:none;z-index:9;opacity:0;transition:opacity 0.08s;"></div>
+<!-- Valorant-style hit marker -->
+<svg id="hit-marker" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <line x1="6"  y1="6"  x2="13" y2="13" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="26" y1="6"  x2="19" y2="13" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="6"  y1="26" x2="13" y2="19" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="26" y1="26" x2="19" y2="19" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+</svg>
+
+<div id="hit-flash"></div>
+<div id="kill-flash"></div>
 
 <div id="hint" class="hidden">คลิกซ้าย = ยิง &nbsp;|&nbsp; ESC = เมนูปรับ Sensitivity</div>
 
@@ -123,7 +136,7 @@
       <strong style="color:#00ff88;">Phase 2 — Flicking</strong><br>
       สะบัดเมาส์ยิงเป้านิ่งสุ่ม 20 เป้า มีเป้ากลางจอรีเซ็ตจุดเล็ง
     </p>
-    <p class="small">กด <strong>ESC</strong> เพื่อปรับ Sensitivity ได้ตลอดเวลา</p>
+    <p class="small">Crosshair แบบ Valorant พร้อม Hit Marker และ Fire Spread</p>
     <button id="start-btn">เริ่มเลย</button>
     <button id="open-settings-btn" class="secondary">⚙ ตั้งค่า Crosshair</button>
   </div>
@@ -141,10 +154,14 @@
       <input type="range" id="fov-input" min="60" max="120" step="1" value="103" style="width:80%;">
     </div>
     <hr style="border-color:#2a2a3e;margin:20px 0;">
-    <p style="margin-bottom:8px;font-weight:600;">Crosshair Style</p>
-    <div class="ch-picker" id="ch-picker-pause"></div>
     <p style="margin-bottom:8px;font-weight:600;">Crosshair Color</p>
     <div class="color-swatches" id="color-swatches-pause"></div>
+    <p style="margin-bottom:8px;font-weight:600;margin-top:16px;">Crosshair Style</p>
+    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;">
+      <button id="style-classic" class="secondary" style="font-size:12px;padding:8px 14px;">Classic</button>
+      <button id="style-dot" class="secondary" style="font-size:12px;padding:8px 14px;">Dot</button>
+      <button id="style-open" class="secondary" style="font-size:12px;padding:8px 14px;">Open (no dot)</button>
+    </div>
     <div class="row-buttons">
       <button id="resume-btn">กลับเข้าเกม</button>
       <button id="restart-btn" class="secondary">เริ่มทดสอบใหม่</button>
@@ -156,10 +173,14 @@
 <div id="ch-settings" class="overlay hidden">
   <div class="panel">
     <h1>ตั้งค่า Crosshair</h1>
-    <p style="margin-bottom:8px;font-weight:600;">Style</p>
-    <div class="ch-picker" id="ch-picker-main"></div>
     <p style="margin-bottom:8px;font-weight:600;">Color</p>
     <div class="color-swatches" id="color-swatches-main"></div>
+    <p style="margin-bottom:8px;font-weight:600;margin-top:16px;">Style</p>
+    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;">
+      <button id="style-classic2" class="secondary" style="font-size:12px;padding:8px 14px;">Classic</button>
+      <button id="style-dot2" class="secondary" style="font-size:12px;padding:8px 14px;">Dot</button>
+      <button id="style-open2" class="secondary" style="font-size:12px;padding:8px 14px;">Open (no dot)</button>
+    </div>
     <div class="row-buttons">
       <button id="ch-settings-close">ตกลง</button>
     </div>
@@ -171,7 +192,7 @@
   <div class="panel">
     <h1>Tracking — ผลคะแนน</h1>
     <p>Sensitivity: <strong id="tq-current" style="color:#00ff88;">1.000</strong></p>
-    <div class="score-box" id="tq-score-box">
+    <div class="score-box">
       <div class="s-row"><span class="s-label">เวลาที่เล็งถูก</span><span class="s-val" id="tq-ontime">0.0s</span></div>
       <div class="s-row"><span class="s-label">ความแม่น (Accuracy)</span><span class="s-val" id="tq-acc">0%</span></div>
       <div class="s-row"><span class="s-label">เกรด</span><span class="s-val" id="tq-grade-inline">-</span></div>
@@ -258,79 +279,115 @@
   let lastTrackingAcc = 0;
   let lastTrackingGrade = '-';
 
-  const CH_STYLES = [
-    { id:'ch-default', label:'Default' },
-    { id:'ch-dot',     label:'Dot' },
-    { id:'ch-cross',   label:'Cross' },
-    { id:'ch-circle',  label:'Circle' },
-    { id:'ch-tshape',  label:'T-Shape' },
-  ];
+  // Valorant crosshair state
+  let chColor = '#00ff88';
+  let chStyle = 'classic'; // classic | dot | open
+  let fireSpread = 0;
+  let fireSpreadAnim = null;
+
   const CH_COLORS = ['#00ff88','#ffffff','#ff4466','#44aaff','#ffdd44','#ff8844','#cc44ff'];
-  let currentChStyle = 'ch-default';
-  let currentChColor = '#00ff88';
 
-  function buildCrosshairSVG(style, color) {
-    const c = color || '#00ff88';
-    if (style === 'ch-default') return `<svg viewBox="0 0 36 36"><line x1="18" y1="10" x2="18" y2="26" stroke="${c}" stroke-width="2"/><line x1="10" y1="18" x2="26" y2="18" stroke="${c}" stroke-width="2"/><circle cx="18" cy="18" r="1.5" fill="${c}"/></svg>`;
-    if (style === 'ch-dot')     return `<svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="4" fill="${c}"/></svg>`;
-    if (style === 'ch-cross')   return `<svg viewBox="0 0 36 36"><line x1="18" y1="6" x2="18" y2="30" stroke="${c}" stroke-width="2"/><line x1="6" y1="18" x2="30" y2="18" stroke="${c}" stroke-width="2"/></svg>`;
-    if (style === 'ch-circle')  return `<svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="10" fill="none" stroke="${c}" stroke-width="2"/><circle cx="18" cy="18" r="2" fill="${c}"/></svg>`;
-    if (style === 'ch-tshape')  return `<svg viewBox="0 0 36 36"><line x1="18" y1="18" x2="18" y2="30" stroke="${c}" stroke-width="2"/><line x1="10" y1="18" x2="26" y2="18" stroke="${c}" stroke-width="2"/></svg>`;
-    return '';
-  }
-
-  function applyCurrentCrosshair() {
-    const el = document.getElementById('crosshair');
-    el.className = el.className.replace(/ch-\S+/g,'').trim();
-    el.classList.add(currentChStyle);
-    el.style.setProperty('--ch-color', currentChColor);
-    const dot = el.querySelector('.ch-dot');
-    const circle = el.querySelector('.ch-circle-el');
-    if (dot) dot.style.background = currentChColor;
-    if (circle) {
-      circle.style.display = currentChStyle === 'ch-circle' ? 'block' : 'none';
-      circle.style.borderColor = currentChColor;
-    }
-  }
-
-  function buildPickerInto(container, swatchContainer) {
+  function buildSwatches(container) {
     container.innerHTML = '';
-    CH_STYLES.forEach(s => {
-      const d = document.createElement('div');
-      d.className = 'ch-opt' + (s.id === currentChStyle ? ' active' : '');
-      d.innerHTML = buildCrosshairSVG(s.id, currentChColor);
-      d.dataset.style = s.id;
-      d.title = s.label;
-      d.addEventListener('click', () => {
-        currentChStyle = s.id;
-        applyCurrentCrosshair();
-        document.querySelectorAll('.ch-opt').forEach(o => o.classList.remove('active'));
-        document.querySelectorAll(`[data-style="${s.id}"]`).forEach(o => o.classList.add('active'));
-        document.querySelectorAll('.ch-opt').forEach(o => {
-          o.innerHTML = buildCrosshairSVG(o.dataset.style, currentChColor);
-        });
-      });
-      container.appendChild(d);
-    });
-
-    swatchContainer.innerHTML = '';
     CH_COLORS.forEach(c => {
       const d = document.createElement('div');
-      d.className = 'swatch' + (c === currentChColor ? ' active' : '');
+      d.className = 'swatch' + (c === chColor ? ' active' : '');
       d.style.background = c;
       d.dataset.color = c;
       d.addEventListener('click', () => {
-        currentChColor = c;
-        applyCurrentCrosshair();
+        chColor = c;
+        applyCrosshairColor(c);
         document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
         document.querySelectorAll(`[data-color="${c}"]`).forEach(s => s.classList.add('active'));
-        document.querySelectorAll('.ch-opt').forEach(o => {
-          o.innerHTML = buildCrosshairSVG(o.dataset.style, currentChColor);
-        });
       });
-      swatchContainer.appendChild(d);
+      container.appendChild(d);
     });
   }
+
+  function applyCrosshairColor(c) {
+    document.querySelectorAll('#ch-lines rect, #ch-lines circle').forEach(el => el.setAttribute('fill', c));
+  }
+
+  function setCrosshairStyle(s) {
+    chStyle = s;
+    const dot = document.getElementById('ch-dot');
+    const top = document.getElementById('ch-top');
+    const bottom = document.getElementById('ch-bottom');
+    const left = document.getElementById('ch-left');
+    const right = document.getElementById('ch-right');
+    if (s === 'dot') {
+      [top, bottom, left, right].forEach(el => el.setAttribute('opacity', '0'));
+      dot.setAttribute('r', '3');
+      dot.setAttribute('opacity', '1');
+    } else if (s === 'open') {
+      [top, bottom, left, right].forEach(el => el.setAttribute('opacity', '1'));
+      dot.setAttribute('opacity', '0');
+    } else {
+      [top, bottom, left, right].forEach(el => el.setAttribute('opacity', '1'));
+      dot.setAttribute('opacity', '1');
+      dot.setAttribute('r', '1.5');
+    }
+    updateCrosshairSpread(fireSpread);
+  }
+
+  function updateCrosshairSpread(t) {
+    const gap = t * 8;
+    const top = document.getElementById('ch-top');
+    const bottom = document.getElementById('ch-bottom');
+    const left = document.getElementById('ch-left');
+    const right = document.getElementById('ch-right');
+    if (chStyle !== 'dot') {
+      top.setAttribute('y', 6 - gap);
+      bottom.setAttribute('y', 33 + gap);
+      left.setAttribute('x', 6 - gap);
+      right.setAttribute('x', 33 + gap);
+    }
+  }
+
+  function triggerFireSpread() {
+    if (fireSpreadAnim) cancelAnimationFrame(fireSpreadAnim);
+    fireSpread = 1;
+    updateCrosshairSpread(1);
+    const start = performance.now();
+    const dur = 200;
+    function step() {
+      const t = Math.min(1, (performance.now() - start) / dur);
+      fireSpread = 1 - t;
+      updateCrosshairSpread(fireSpread);
+      if (t < 1) fireSpreadAnim = requestAnimationFrame(step);
+      else fireSpreadAnim = null;
+    }
+    fireSpreadAnim = requestAnimationFrame(step);
+  }
+
+  let hitMarkerAnim = null;
+  function triggerHitMarker(kill = false) {
+    if (hitMarkerAnim) cancelAnimationFrame(hitMarkerAnim);
+    const hm = document.getElementById('hit-marker');
+    const hf = document.getElementById('hit-flash');
+    const kf = document.getElementById('kill-flash');
+    const col = kill ? '#ffdd44' : '#ffffff';
+    document.querySelectorAll('#hit-marker line').forEach(el => el.setAttribute('stroke', col));
+    hm.style.opacity = '1';
+    if (kill) { kf.style.opacity = '1'; setTimeout(() => { kf.style.opacity = '0'; }, 120); }
+    else { hf.style.opacity = '1'; setTimeout(() => { hf.style.opacity = '0'; }, 90); }
+    const start = performance.now();
+    const dur = 350;
+    function step() {
+      const t = Math.min(1, (performance.now() - start) / dur);
+      hm.style.opacity = String(1 - t);
+      if (t < 1) hitMarkerAnim = requestAnimationFrame(step);
+      else hitMarkerAnim = null;
+    }
+    hitMarkerAnim = requestAnimationFrame(step);
+  }
+
+  ['classic','dot','open'].forEach(s => {
+    const b1 = document.getElementById(`style-${s}`);
+    const b2 = document.getElementById(`style-${s}2`);
+    if (b1) b1.addEventListener('click', () => setCrosshairStyle(s));
+    if (b2) b2.addEventListener('click', () => setCrosshairStyle(s));
+  });
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0a14);
@@ -370,9 +427,15 @@
 
   function makeTarget(radius, color) {
     const group = new THREE.Group();
-    const inner = new THREE.Mesh(new THREE.SphereGeometry(radius,24,24), new THREE.MeshStandardMaterial({color,emissive:new THREE.Color(color).multiplyScalar(0.4),roughness:0.4,metalness:0.2}));
+    const inner = new THREE.Mesh(
+      new THREE.SphereGeometry(radius,24,24),
+      new THREE.MeshStandardMaterial({color,emissive:new THREE.Color(color).multiplyScalar(0.4),roughness:0.4,metalness:0.2})
+    );
     group.add(inner);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius*1.15,radius*0.08,12,32), new THREE.MeshStandardMaterial({color:0xffffff,emissive:0x444444}));
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(radius*1.15,radius*0.08,12,32),
+      new THREE.MeshStandardMaterial({color:0xffffff,emissive:0x444444})
+    );
     group.add(ring);
     return group;
   }
@@ -414,7 +477,7 @@
       els.sensInput.value = sensitivity.toFixed(3);
       els.fovInput.value = fovDeg;
       els.fovValue.textContent = fovDeg;
-      buildPickerInto(document.getElementById('ch-picker-pause'), document.getElementById('color-swatches-pause'));
+      buildSwatches(document.getElementById('color-swatches-pause'));
     }
   });
 
@@ -435,7 +498,7 @@
     accBarWrap: document.getElementById('acc-bar-wrap'),
     accBarFill: document.getElementById('acc-bar-fill'),
     accBarPct: document.getElementById('acc-bar-pct'),
-    crosshair: document.getElementById('crosshair'),
+    crosshairSvg: document.getElementById('crosshair-svg'),
     hint: document.getElementById('hint'),
     startMenu: document.getElementById('start-menu'),
     pauseMenu: document.getElementById('pause-menu'),
@@ -461,7 +524,6 @@
     resultAcc: document.getElementById('result-acc'),
     resultGrade: document.getElementById('result-grade'),
     resultFlick: document.getElementById('result-flick'),
-    hitFlash: document.getElementById('hit-flash'),
   };
 
   const allOverlays = [els.startMenu, els.pauseMenu, els.chSettings, els.trackingQ, els.flickingQ, els.dpiAdvice, els.resultScreen];
@@ -508,14 +570,14 @@
 
   function showHud() {
     els.hud.classList.remove('hidden');
-    els.crosshair.classList.remove('hidden');
+    els.crosshairSvg.classList.remove('hidden');
     els.hint.classList.remove('hidden');
   }
   function hideHud() {
     els.hud.classList.add('hidden');
     els.scoreHud.classList.add('hidden');
     els.accBarWrap.classList.add('hidden');
-    els.crosshair.classList.add('hidden');
+    els.crosshairSvg.classList.add('hidden');
     els.hint.classList.add('hidden');
   }
 
@@ -621,11 +683,6 @@
     step();
   }
 
-  function doHitFlash() {
-    els.hitFlash.style.opacity = '1';
-    setTimeout(() => { els.hitFlash.style.opacity = '0'; }, 80);
-  }
-
   canvas.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
     if (!pointerLocked) {
@@ -633,21 +690,36 @@
       if (!anyVisible && (phase === 'tracking' || phase === 'flicking')) lockPointer();
       return;
     }
+    triggerFireSpread();
     if (phase === 'flicking') handleFlickShot();
+    else if (phase === 'tracking') {
+      raycaster.setFromCamera(screenCenter, camera);
+      if (trackingTarget && raycaster.intersectObject(trackingTarget, true).length > 0) {
+        triggerHitMarker(false);
+      }
+    }
   });
 
   function handleFlickShot() {
     raycaster.setFromCamera(screenCenter, camera);
     if (flickShowingCenter && centerTarget) {
       const hits = raycaster.intersectObject(centerTarget, true);
-      if (hits.length > 0) { flashHit(centerTarget); doHitFlash(); centerTarget=null; flickShowingCenter=false; spawnFlickTarget(); updateProgress(); }
+      if (hits.length > 0) {
+        triggerHitMarker(false);
+        flashHit(centerTarget); centerTarget=null; flickShowingCenter=false; spawnFlickTarget(); updateProgress();
+      }
       return;
     }
     if (flickTarget) {
       flickAttempts++;
       const hits = raycaster.intersectObject(flickTarget, true);
-      if (hits.length > 0) { flickHits++; flashHit(flickTarget); doHitFlash(); flickTarget=null; }
-      else { scene.remove(flickTarget); flickTarget=null; }
+      if (hits.length > 0) {
+        flickHits++;
+        triggerHitMarker(true);
+        flashHit(flickTarget); flickTarget=null;
+      } else {
+        scene.remove(flickTarget); flickTarget=null;
+      }
       if (flickAttempts >= FLICK_TARGET_COUNT) endFlicking();
       else { spawnCenterTarget(); updateProgress(); }
     }
@@ -655,7 +727,7 @@
 
   document.getElementById('start-btn').addEventListener('click', () => startTracking());
   document.getElementById('open-settings-btn').addEventListener('click', () => {
-    buildPickerInto(document.getElementById('ch-picker-main'), document.getElementById('color-swatches-main'));
+    buildSwatches(document.getElementById('color-swatches-main'));
     showOverlay(els.chSettings);
   });
   document.getElementById('ch-settings-close').addEventListener('click', () => showOverlay(els.startMenu));
@@ -675,7 +747,12 @@
 
   els.sensInput.addEventListener('input', () => {
     const v = parseFloat(els.sensInput.value);
-    if (!isNaN(v) && v>0) { sensitivity=roundSens(v); els.sensDisplay.textContent=sensitivity.toFixed(3); els.tqCurrent.textContent=sensitivity.toFixed(3); els.finalSens.textContent=sensitivity.toFixed(3); }
+    if (!isNaN(v) && v>0) {
+      sensitivity = roundSens(v);
+      els.sensDisplay.textContent = sensitivity.toFixed(3);
+      els.tqCurrent.textContent = sensitivity.toFixed(3);
+      els.finalSens.textContent = sensitivity.toFixed(3);
+    }
   });
 
   els.fovInput.addEventListener('input', () => {
@@ -742,9 +819,10 @@
     renderer.setSize(innerWidth, innerHeight);
   });
 
-  applyCurrentCrosshair();
-  buildPickerInto(document.getElementById('ch-picker-pause'), document.getElementById('color-swatches-pause'));
+  buildSwatches(document.getElementById('color-swatches-pause'));
+  buildSwatches(document.getElementById('color-swatches-main'));
   updateSensDisplay();
+  setCrosshairStyle('classic');
   animate();
 })();
 </script>
